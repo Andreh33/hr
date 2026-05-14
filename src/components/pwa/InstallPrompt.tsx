@@ -18,12 +18,30 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-// 5-second precise reveal, 320px max width, slide-in spring, mini phone
-// mockup. Cooldown 30 days on dismiss/accept.
+// 5s precise reveal, 320px max, slide-in spring, mini phone mockup.
+// Three install paths:
+//  · Chrome/Edge (desktop+Android): native beforeinstallprompt → prompt().
+//  · iOS Safari: visual step-by-step (no API exists).
+//  · Other browsers / event not yet fired: per-platform manual hint so the
+//    button is never mute (the v4 bug — clicking did nothing when the
+//    browser hadn't yet emitted the event).
+type Platform = "android" | "ios" | "desktop-chrome" | "desktop-other" | "other";
+
+function detectPlatform(): Platform {
+  if (typeof navigator === "undefined") return "other";
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua)) return "ios";
+  if (/Android/.test(ua)) return "android";
+  const isChromium = /Chrome|Edg|Opera|Brave/.test(ua) && !/Mobile/.test(ua);
+  return isChromium ? "desktop-chrome" : "desktop-other";
+}
+
 export function InstallPrompt() {
   const [visible, setVisible] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isIos, setIsIos] = useState(false);
+  const [platform, setPlatform] = useState<Platform>("other");
+  const [installing, setInstalling] = useState(false);
+  const [needsManualHint, setNeedsManualHint] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -42,9 +60,7 @@ export function InstallPrompt() {
       }
     }
 
-    const ua = window.navigator.userAgent;
-    const iosLike = /iPhone|iPad|iPod/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
-    setIsIos(iosLike);
+    setPlatform(detectPlatform());
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
@@ -69,17 +85,43 @@ export function InstallPrompt() {
 
   async function accept() {
     if (installEvent) {
-      await installEvent.prompt();
-      const choice = await installEvent.userChoice;
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ state: choice.outcome, at: Date.now() } as Decision)
-      );
-    } else {
+      setInstalling(true);
+      try {
+        await installEvent.prompt();
+        const choice = await installEvent.userChoice;
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ state: choice.outcome, at: Date.now() } as Decision)
+        );
+      } finally {
+        setInstalling(false);
+        setVisible(false);
+      }
       return;
     }
-    setVisible(false);
+    // No native event captured. iOS already shows steps. For everything else
+    // surface the per-platform manual instructions inline.
+    if (platform !== "ios") setNeedsManualHint(true);
   }
+
+  // Pick the inline hint shown when the native prompt isn't available.
+  const hintFor = (p: Platform) => {
+    switch (p) {
+      case "ios":
+        return null; // dedicated ios block below
+      case "desktop-chrome":
+        return "Pulsa el icono de instalación (un monitor con flecha) en la barra de direcciones del navegador.";
+      case "android":
+        return "Abre el menú del navegador (⋮) y elige “Instalar app” o “Añadir a pantalla de inicio”.";
+      case "desktop-other":
+        return "Tu navegador todavía no expone la instalación. En Chrome o Edge sí está disponible: copia esta URL allí y verás el icono de instalar.";
+      default:
+        return "Abre esta web en Chrome o Edge para instalarla como app.";
+    }
+  };
+
+  const showIosSteps = platform === "ios";
+  const inlineHint = needsManualHint ? hintFor(platform) : null;
 
   return (
     <AnimatePresence>
@@ -111,7 +153,6 @@ export function InstallPrompt() {
             </button>
 
             <div className="flex items-start gap-3 pr-8">
-              {/* Mini phone mockup — single inline SVG, ~1KB */}
               <PhoneMockup />
               <div>
                 <h3 className="font-display text-lg leading-tight text-bone-50">
@@ -123,7 +164,7 @@ export function InstallPrompt() {
               </div>
             </div>
 
-            {isIos && !installEvent ? (
+            {showIosSteps && (
               <ul className="mt-3 space-y-1 rounded-lg bg-ink-950/40 p-2.5 text-[11px] leading-snug text-bone-100/85">
                 <li className="flex items-center gap-1.5">
                   <span className="font-mono text-[10px] text-azure-400">1.</span>
@@ -134,21 +175,28 @@ export function InstallPrompt() {
                   Elige <span className="font-mono">Añadir a pantalla de inicio</span>.
                 </li>
               </ul>
-            ) : null}
+            )}
+
+            {inlineHint && (
+              <div className="mt-3 rounded-lg bg-ink-950/40 p-2.5 text-[11px] leading-snug text-bone-100/85">
+                <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-azure-400">Instalación manual</p>
+                <p className="mt-1">{inlineHint}</p>
+              </div>
+            )}
 
             <div className="mt-3 flex items-center gap-2">
               <button
                 type="button"
                 onClick={accept}
-                disabled={isIos && !installEvent}
+                disabled={installing}
                 className={cn(
                   "inline-flex h-9 items-center rounded-full px-4 font-mono text-[11px] uppercase tracking-[0.15em] transition-all",
-                  isIos && !installEvent
+                  installing
                     ? "border border-plum-400/30 text-bone-100/50"
                     : "bg-azure-400 text-ink-950 hover:-translate-y-0.5"
                 )}
               >
-                {isIos && !installEvent ? "Sigue los pasos ↑" : "Instalar"}
+                {installing ? "Instalando…" : showIosSteps ? "Entendido" : inlineHint ? "Ver pasos ↑" : "Instalar"}
               </button>
               <button
                 type="button"
