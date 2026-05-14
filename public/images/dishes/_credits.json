@@ -1,0 +1,54 @@
+{
+  "_note": "Fotografías de Pexels (Pexels License — uso comercial sin atribución obligatoria, atribuimos por respeto). Sustituir por fotografías propias del local cuando el cliente las proporcione.",
+  "_license": "https://www.pexels.com/license/",
+  "images": {
+    "cocina-01": {
+      "slot": "Sección Carne, fuego, oficio — card principal: cocina en plena hora punta",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/1633578/",
+      "credit": "Pexels"
+    },
+    "papas-01": {
+      "slot": "Sección Carne, fuego, oficio — card 2: patatas loaded estilo Casa de las Papas",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/1893555/",
+      "credit": "Pexels"
+    },
+    "queso-01": {
+      "slot": "Sección Carne, fuego, oficio — card 3: detalle de queso fundido (cheese pull)",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/6605215/",
+      "credit": "Pexels"
+    },
+    "bandeja-01": {
+      "slot": "Sección Carne, fuego, oficio — card 4: bandeja para compartir",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/2474661/",
+      "credit": "Pexels"
+    },
+    "pantera-01": {
+      "slot": "Card chef-pick: La Pantera",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/3219547/",
+      "credit": "Pexels"
+    },
+    "gamberra-01": {
+      "slot": "Carta — La Gamberra (Hamburguesas Gourmet)",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/4109111/",
+      "credit": "Pexels"
+    },
+    "solomillo-01": {
+      "slot": "Carta — Solomillo a la brasa (Raciones)",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/769289/",
+      "credit": "Pexels"
+    },
+    "doble-01": {
+      "slot": "Carta — La Doble de Ternera ó Pollo (Hamburguesas Clásicas)",
+      "source": "Pexels",
+      "url": "https://www.pexels.com/photo/1639557/",
+      "credit": "Pexels"
+    }
+  }
+}

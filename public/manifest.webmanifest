@@ -1,0 +1,33 @@
+{
+  "name": "HR+ World Food",
+  "short_name": "HR+",
+  "description": "Hamburguesas, bocadillos y la casa de las papas. Puebla de la Calzada, Badajoz.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07060A",
+  "theme_color": "#0E0C14",
+  "categories": ["food", "lifestyle"],
+  "lang": "es-ES",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Reservar mesa",
+      "url": "/reservar",
+      "description": "Reserva en segundos."
+    },
+    {
+      "name": "Ver la carta",
+      "url": "/menu",
+      "description": "La carta entera, filtrable."
+    }
+  ]
+}
