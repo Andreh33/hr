@@ -23,10 +23,10 @@ const STICKER_RULES: Array<{
 const STICKER_COPY: Record<StickerSlug, {
   label: string;
   rotate: number;
-  tone: "hot" | "azure" | "plum" | "open" | "brasa";
+  tone: "fuego" | "azure" | "plum" | "open" | "brasa";
   tooltip: string;
 }> = {
-  fuego:  { label: "Fuego",   rotate: 6,  tone: "hot",   tooltip: "Pica de verdad. Sin disimulos." },
+  fuego:  { label: "Fuego",   rotate: 6,  tone: "fuego", tooltip: "Pica de verdad. Sin disimulos." },
   jugoso: { label: "Jugoso",  rotate: -5, tone: "azure", tooltip: "Avisado: hay que tener servilleta cerca." },
   veg:    { label: "Vegetal", rotate: 4,  tone: "open",  tooltip: "Sin carne. Sí sabor." },
   top:    { label: "Top",     rotate: -4, tone: "plum",  tooltip: "Lo más pedido esta temporada." },
@@ -42,8 +42,11 @@ export function pickStickerSlug(item: MenuItem): StickerSlug | null {
 
 export function DishSticker({ slug }: { slug: StickerSlug }) {
   const { label, rotate, tone, tooltip } = STICKER_COPY[slug];
+  // Fuego is a deep brick red (real fire, not pink) and Brasa is the brand
+  // hot orange — they live side-by-side so they need to read as distinct
+  // temperatures, not as "the closed-state dot pretending to be a sticker".
   const toneCls = {
-    hot:   "bg-closed text-bone-50 border-closed shadow-[0_8px_24px_-12px_rgba(255,77,106,0.7)]",
+    fuego: "bg-[#C8341B] text-bone-50 border-[#C8341B] shadow-[0_8px_24px_-12px_rgba(200,52,27,0.7)]",
     azure: "bg-azure-400 text-ink-950 border-azure-500 shadow-[0_8px_24px_-12px_rgba(0,168,255,0.7)]",
     plum:  "bg-plum-500 text-bone-50 border-plum-600 shadow-[0_8px_24px_-12px_rgba(139,77,255,0.7)]",
     open:  "bg-open text-ink-950 border-open shadow-[0_8px_24px_-12px_rgba(54,211,153,0.6)]",

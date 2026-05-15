@@ -102,7 +102,7 @@ export function CartaCard({ item, index }: Props) {
             </Chip>
           )}
           {item.spicy && (
-            <Chip tone="hot">
+            <Chip tone="fuego">
               <Flame className="h-3 w-3" aria-hidden /> Fuego
             </Chip>
           )}
@@ -127,13 +127,16 @@ function Chip({
   tone,
 }: {
   children: React.ReactNode;
-  tone: "hot" | "green" | "plum" | "brasa";
+  tone: "fuego" | "green" | "plum" | "brasa";
 }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em]",
-        tone === "hot"   && "border-closed/40 bg-closed/10 text-closed",
+        // fuego = deep brick red (fire). NOT --closed pink — that color is
+        // reserved for the "Cerrado" status badge and reading the two side
+        // by side made spicy dishes look bloody.
+        tone === "fuego" && "border-[#C8341B]/45 bg-[#C8341B]/12 text-[#FF8A6F]",
         tone === "green" && "border-open/40 bg-open/10 text-open",
         tone === "plum"  && "border-plum-400/40 bg-plum-500/10 text-plum-300",
         tone === "brasa" && "border-hot/40 bg-hot/10 text-hot-soft"
