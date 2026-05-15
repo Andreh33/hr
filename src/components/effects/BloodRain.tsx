@@ -3,36 +3,39 @@
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
-// One-shot dramatic intro: gotas de jugo de carne / sangre caen desde
-// arriba, impactan a alturas variables, salpican y se desvanecen. Después
-// de la animación, todo queda limpio.
+// Pintura/sangre derramada desde el borde superior: aparece un charco con
+// borde inferior irregular, y de ahí descienden chorretones gruesos lentos
+// que se quedan goteando a alturas variables. Bordes orgánicos vía SVG
+// feTurbulence + feDisplacementMap aplicados a paths gordos, no a líneas
+// finas — así no parece lluvia.
 //
-// Retrigger: 3 clicks consecutivos en cualquier punto de la página dentro
-// de una ventana de 1.5s la vuelven a disparar. Mientras está animando, los
-// clicks no cuentan (no se puede solapar consigo misma).
-//
-// Cero deps externas, cero textures de red — feTurbulence + radial gradient
-// hacen el trabajo. Pointer-events:none para que no bloquee la UI.
+// Retrigger: 3 clicks en ventana de 1.5s la vuelven a disparar. Mientras
+// está animando, los clicks no cuentan.
 
-const DROP_COUNT = 14;
-const FALL_BASE_S = 1.4;
-const FALL_VAR_S = 1.0;
-const SETTLE_S = 1.0;     // gotas se quedan visibles después del impacto
-const FADE_S = 1.4;       // duración del fade-out
-const TOTAL_BUDGET_MS = 7000;
+const TENDRIL_COUNT = 9;
+const PUDDLE_REVEAL_S = 0.55;
+const DRIP_BASE_S = 2.9;          // chorretón base — lento, viscoso
+const DRIP_VAR_S = 1.4;           // ±1.4s de variación
+const SETTLE_S = 1.4;             // cuánto se queda fijo después del descenso
+const FADE_S = 1.4;
+const TOTAL_BUDGET_MS = 9500;
 const RETRIGGER_CLICKS = 3;
 const RETRIGGER_WINDOW_MS = 1500;
 
-type DropConfig = {
+type Tendril = {
   id: number;
-  x: number;
-  size: number;
-  fallToVh: number;
-  delay: number;
-  duration: number;
+  xPct: number;        // posición horizontal centro (viewBox %)
+  widthTop: number;    // ancho en la unión con el charco
+  widthBottom: number; // ancho en la zona de la gota
+  lengthVh: number;    // longitud total descendente (viewBox %)
+  zigA: number;        // desviación lateral primer tramo
+  zigB: number;        // desviación lateral segundo tramo
+  delay: number;       // s antes de empezar
+  duration: number;    // s del descenso
+  bulgeR: number;      // radio de la gota terminal
 };
 
-function makePRNG(seed: number) {
+function prng(seed: number) {
   let s = seed * 9301 + 49297;
   return () => {
     s = (s * 9301 + 49297) % 233280;
@@ -40,37 +43,101 @@ function makePRNG(seed: number) {
   };
 }
 
-function generateDrops(seed: number): DropConfig[] {
-  const rand = makePRNG(seed + 1);
-  return Array.from({ length: DROP_COUNT }, (_, i) => ({
-    id: i,
-    x: 4 + rand() * 92,
-    size: 16 + rand() * 24,                  // 16–40 px head width
-    fallToVh: 40 + rand() * 55,              // settle between 40 and 95vh
-    delay: rand() * 1.8,
-    duration: FALL_BASE_S + rand() * FALL_VAR_S,
-  }));
+function generateTendrils(seed: number): Tendril[] {
+  const r = prng(seed + 1);
+  // Posiciones X espaciadas con jitter para que no queden alineadas regular.
+  return Array.from({ length: TENDRIL_COUNT }, (_, i) => {
+    const slot = (i / TENDRIL_COUNT) * 100;
+    const jitter = (r() - 0.5) * (100 / TENDRIL_COUNT) * 0.8;
+    const widthTop = 1.8 + r() * 2.2;             // 1.8–4.0
+    const widthBottom = widthTop * (0.45 + r() * 0.2);
+    return {
+      id: i,
+      xPct: Math.max(3, Math.min(97, slot + jitter + 4)),
+      widthTop,
+      widthBottom,
+      lengthVh: 22 + r() * 55,                    // 22–77
+      zigA: (r() - 0.5) * 1.6,
+      zigB: (r() - 0.5) * 1.8,
+      delay: PUDDLE_REVEAL_S * 0.4 + r() * 1.8,
+      duration: DRIP_BASE_S + r() * DRIP_VAR_S,
+      bulgeR: widthTop * (0.7 + r() * 0.5),
+    };
+  });
+}
+
+// Genera el path de un chorretón: dos curvas Bezier laterales que se
+// estrechan al bajar + una gota terminal semicircular abajo.
+function tendrilPath(t: Tendril): string {
+  const topY = 3.8;
+  const botY = topY + t.lengthVh;
+  const xL_top = t.xPct - t.widthTop / 2;
+  const xR_top = t.xPct + t.widthTop / 2;
+  const xL_bot = t.xPct - t.widthBottom / 2 + t.zigA + t.zigB;
+  const xR_bot = t.xPct + t.widthBottom / 2 + t.zigA + t.zigB;
+  // Puntos de control de las curvas — añaden el zigzag orgánico.
+  const cL1x = xL_top + t.zigA;
+  const cL2x = xL_bot + t.zigB;
+  const cR1x = xR_top + t.zigA;
+  const cR2x = xR_bot + t.zigB;
+  const cY1 = topY + t.lengthVh * 0.33;
+  const cY2 = topY + t.lengthVh * 0.66;
+
+  // La gota terminal: arco semicircular grande para que parezca pesada,
+  // ligeramente desplazado hacia abajo (botY + bulgeR*0.1).
+  const bulgeY = botY + t.bulgeR * 0.1;
+  return [
+    `M ${xL_top.toFixed(2)} ${topY}`,
+    `C ${cL1x.toFixed(2)} ${cY1.toFixed(2)} ${cL2x.toFixed(2)} ${cY2.toFixed(2)} ${xL_bot.toFixed(2)} ${botY.toFixed(2)}`,
+    `A ${t.bulgeR.toFixed(2)} ${t.bulgeR.toFixed(2)} 0 0 0 ${xR_bot.toFixed(2)} ${botY.toFixed(2)}`,
+    `C ${cR2x.toFixed(2)} ${cY2.toFixed(2)} ${cR1x.toFixed(2)} ${cY1.toFixed(2)} ${xR_top.toFixed(2)} ${topY}`,
+    `Z`,
+  ].join(" ");
+}
+
+// Charco superior: línea quebrada con curvas Bezier irregulares para que
+// el borde inferior no parezca un recorte recto.
+function puddlePath(seed: number): string {
+  const r = prng(seed + 99);
+  const segments = 14;
+  const baseY = 3.0;
+  const points: Array<[number, number]> = [];
+  for (let i = 0; i <= segments; i++) {
+    const x = (i / segments) * 100;
+    const y = baseY + (r() - 0.3) * 3.5; // -1 a +2.5
+    points.push([x, Math.max(1.5, y)]);
+  }
+  const head = "M 0 0 L 100 0";
+  // viaje al borde inferior derecho
+  const lineToFirstBottom = ` L 100 ${points[points.length - 1]![1].toFixed(2)}`;
+  // curvas Bezier suaves entre puntos, de derecha a izquierda
+  const curves: string[] = [];
+  for (let i = points.length - 1; i > 0; i--) {
+    const a = points[i]!;
+    const b = points[i - 1]!;
+    const mx = (a[0] + b[0]) / 2;
+    const my = (a[1] + b[1]) / 2 + (r() - 0.5) * 1.2;
+    curves.push(`Q ${mx.toFixed(2)} ${my.toFixed(2)} ${b[0].toFixed(2)} ${b[1].toFixed(2)}`);
+  }
+  return `${head}${lineToFirstBottom} ${curves.join(" ")} L 0 0 Z`;
 }
 
 export function BloodRain() {
   const [version, setVersion] = useState(0);
   const [running, setRunning] = useState(false);
-  const drops = useMemo(() => generateDrops(version + 1), [version]);
+  const tendrils = useMemo(() => generateTendrils(version + 1), [version]);
+  const puddle = useMemo(() => puddlePath(version + 1), [version]);
 
-  // Auto-fire on mount.
   useEffect(() => {
     setRunning(true);
   }, []);
 
-  // Auto-stop after budget.
   useEffect(() => {
     if (!running) return;
     const t = setTimeout(() => setRunning(false), TOTAL_BUDGET_MS);
     return () => clearTimeout(t);
   }, [running, version]);
 
-  // Click-3-times retrigger. While the animation is running, clicks don't
-  // count (would otherwise let the user re-retrigger every 3 clicks mid-fall).
   useEffect(() => {
     let clicks = 0;
     let resetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -97,149 +164,92 @@ export function BloodRain() {
     };
   }, [running]);
 
-  return (
-    <>
-      {/* Shared SVG defs — filter + gradients used by every drop. Lives in a
-          zero-size SVG at root so the defs are reachable by url() inside
-          inline SVGs below. */}
-      <svg className="pointer-events-none absolute h-0 w-0" aria-hidden>
-        <defs>
-          <radialGradient id="blood-grad" cx="38%" cy="28%" r="68%">
-            <stop offset="0%" stopColor="#D63838" />
-            <stop offset="32%" stopColor="#8B1818" />
-            <stop offset="78%" stopColor="#4A0606" />
-            <stop offset="100%" stopColor="#2A0303" />
-          </radialGradient>
-          <radialGradient id="blood-grad-light" cx="32%" cy="22%" r="55%">
-            <stop offset="0%" stopColor="#FF6868" stopOpacity="0.7" />
-            <stop offset="50%" stopColor="#C12B2B" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="transparent" />
-          </radialGradient>
-          <filter id="blood-rough" x="-20%" y="-20%" width="140%" height="140%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="7" />
-            <feDisplacementMap in="SourceGraphic" scale="2.6" />
-          </filter>
-          <filter id="blood-rough-strong" x="-30%" y="-30%" width="160%" height="160%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" seed="11" />
-            <feDisplacementMap in="SourceGraphic" scale="4" />
-          </filter>
-        </defs>
-      </svg>
-
-      {running && (
-        <div
-          key={version}
-          aria-hidden
-          className="pointer-events-none fixed inset-0 z-[55] overflow-hidden"
-        >
-          {drops.map((d) => (
-            <Drop key={d.id} {...d} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-function Drop({ x, size, fallToVh, delay, duration }: DropConfig) {
-  const totalLife = duration + SETTLE_S + FADE_S;
+  if (!running) return null;
 
   return (
     <motion.div
-      className="absolute"
-      style={{ left: `${x}%`, top: 0 }}
-      initial={{ y: "-18vh", opacity: 1 }}
-      animate={{
-        y: [`-18vh`, `${fallToVh}vh`, `${fallToVh}vh`],
-        opacity: [1, 1, 0],
-      }}
+      key={version}
+      aria-hidden
+      className="pointer-events-none fixed inset-0 z-[55] overflow-hidden"
+      initial={{ opacity: 1 }}
+      animate={{ opacity: [1, 1, 0] }}
       transition={{
-        delay,
-        duration: totalLife,
-        times: [0, duration / totalLife, 1],
-        // Gravity ease front-loads progress so the drop falls fast and then
-        // sits at its impact y for the settle + fade portion.
-        ease: [0.55, 0, 0.92, 0.5],
+        duration: TOTAL_BUDGET_MS / 1000,
+        times: [0, (TOTAL_BUDGET_MS - FADE_S * 1000) / TOTAL_BUDGET_MS, 1],
       }}
     >
-      {/* trailing streak — gives the drop momentum + a wet path */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2"
-        style={{
-          top: `-${size * 4.5}px`,
-          width: size * 0.22,
-          height: size * 4.5,
-          background:
-            "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(92,14,14,0.45) 88%, rgba(139,24,24,0.95) 100%)",
-          borderRadius: "999px",
-          filter: "blur(0.3px)",
-        }}
-      />
-
-      {/* drop head — teardrop with rough organic edge */}
       <svg
-        width={size}
-        height={size * 1.7}
-        viewBox="0 0 40 68"
-        className="relative block"
-        style={{ filter: `drop-shadow(0 ${size * 0.1}px ${size * 0.35}px rgba(74,6,6,0.55))` }}
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
       >
-        <path
-          d="M 20 1 C 13 16 5 32 5 47 C 5 59 11 66 20 66 C 29 66 35 59 35 47 C 35 32 27 16 20 1 Z"
-          fill="url(#blood-grad)"
-          filter="url(#blood-rough)"
-        />
-        {/* wet sheen highlight */}
-        <ellipse cx="14" cy="42" rx="3.5" ry="6" fill="url(#blood-grad-light)" />
-      </svg>
+        <defs>
+          <linearGradient id="bloodv6-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%"  stopColor="#7A0E0E" />
+            <stop offset="30%" stopColor="#5C0808" />
+            <stop offset="70%" stopColor="#3D0404" />
+            <stop offset="100%" stopColor="#2A0303" />
+          </linearGradient>
+          <radialGradient id="bloodv6-sheen" cx="35%" cy="30%" r="60%">
+            <stop offset="0%"  stopColor="#C12B2B" stopOpacity="0.55" />
+            <stop offset="60%" stopColor="#7A1414" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="transparent" />
+          </radialGradient>
+          {/* Desplazamiento orgánico — scale alto rompe la simetría Bezier
+              y hace que el borde parezca papel mojado / pintura goteando. */}
+          <filter id="bloodv6-rough" x="-15%" y="-15%" width="130%" height="130%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012 0.06" numOctaves="3" seed="13" />
+            <feDisplacementMap in="SourceGraphic" scale="2.2" />
+          </filter>
+          {/* clip-path por chorretón — animado de altura 0 → lengthVh para
+              "revelar" el path progresivamente como si manara desde arriba. */}
+          {tendrils.map((t) => (
+            <clipPath key={t.id} id={`bloodv6-clip-${t.id}`}>
+              <motion.rect
+                x={t.xPct - t.widthTop * 1.5 - t.bulgeR}
+                y={0}
+                width={t.widthTop * 3 + t.bulgeR * 2}
+                initial={{ height: 0 }}
+                animate={{ height: 3.8 + t.lengthVh + t.bulgeR * 1.4 }}
+                transition={{
+                  delay: t.delay,
+                  duration: t.duration,
+                  ease: [0.55, 0.04, 0.85, 0.4], // gravity-ish, lento al final
+                }}
+              />
+            </clipPath>
+          ))}
+        </defs>
 
-      {/* splash impact — emerges at the moment the drop reaches fallToVh,
-          spreads outward, holds, then fades with the rest. */}
-      <motion.div
-        className="absolute left-1/2"
-        style={{
-          top: `${size * 1.65}px`,
-          width: size * 2.6,
-          marginLeft: `-${size * 1.3}px`,
-        }}
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{
-          scale: [0, 1.25, 1.05, 1.05, 1.05],
-          opacity: [0, 1, 0.95, 0.9, 0],
-        }}
-        transition={{
-          delay: delay + duration - 0.04,
-          duration: SETTLE_S + FADE_S + 0.2,
-          times: [0, 0.12, 0.3, 0.55, 1],
-          ease: [0.16, 1, 0.3, 1],
-        }}
-      >
-        <svg viewBox="0 0 80 28" className="block w-full" preserveAspectRatio="xMidYMid meet">
-          {/* main organic splat */}
-          <path
-            d="M 40 14
-               C 32 4 20 4 12 8
-               C 5 12 6 18 14 19
-               C 22 20 30 19 40 19
-               C 50 19 58 20 66 19
-               C 74 18 75 12 68 8
-               C 60 4 48 4 40 14 Z"
-            fill="url(#blood-grad)"
-            filter="url(#blood-rough-strong)"
-          />
-          {/* satellite drops, randomized look via mixed shapes */}
-          <circle cx="6" cy="23" r="1.6" fill="#5C0E0E" />
-          <circle cx="74" cy="23" r="1.3" fill="#5C0E0E" />
-          <ellipse cx="40" cy="24" rx="1.9" ry="0.9" fill="#5C0E0E" />
-          <circle cx="14" cy="6" r="0.9" fill="#8B1818" />
-          <circle cx="66" cy="6" r="1.1" fill="#8B1818" />
-          <circle cx="24" cy="25" r="0.7" fill="#5C0E0E" />
-          <circle cx="58" cy="25" r="0.8" fill="#5C0E0E" />
-          {/* tiny mist droplets further out */}
-          <circle cx="2" cy="20" r="0.5" fill="#5C0E0E" />
-          <circle cx="78" cy="20" r="0.5" fill="#5C0E0E" />
-        </svg>
-      </motion.div>
+        {/* Charco superior — aparece primero, "se derrama" sobre el borde */}
+        <motion.path
+          d={puddle}
+          fill="url(#bloodv6-grad)"
+          filter="url(#bloodv6-rough)"
+          initial={{ scaleY: 0, transformOrigin: "top" }}
+          animate={{ scaleY: 1 }}
+          transition={{ duration: PUDDLE_REVEAL_S, ease: [0.22, 1, 0.36, 1] }}
+        />
+
+        {/* Chorretones — cada uno con su clip-path para revelar al bajar */}
+        {tendrils.map((t) => (
+          <g key={t.id} clipPath={`url(#bloodv6-clip-${t.id})`}>
+            <path
+              d={tendrilPath(t)}
+              fill="url(#bloodv6-grad)"
+              filter="url(#bloodv6-rough)"
+            />
+            {/* sheen húmedo sobre la zona ancha del chorretón */}
+            <ellipse
+              cx={t.xPct - t.widthTop * 0.15}
+              cy={3.8 + t.lengthVh * 0.18}
+              rx={t.widthTop * 0.32}
+              ry={t.lengthVh * 0.18}
+              fill="url(#bloodv6-sheen)"
+            />
+          </g>
+        ))}
+      </svg>
     </motion.div>
   );
 }
