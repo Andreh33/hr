@@ -7,6 +7,7 @@ import { SITE } from "@/lib/site";
 import { RestaurantJsonLd } from "@/components/seo/RestaurantJsonLd";
 import { Navbar } from "@/components/layout/Navbar";
 import { Grain } from "@/components/effects/Grain";
+import { BloodRain } from "@/components/effects/BloodRain";
 import { ServiceWorkerRegister } from "@/components/pwa/ServiceWorkerRegister";
 import "./globals.css";
 
@@ -86,6 +87,7 @@ export default function RootLayout({
       <body className="relative min-h-full flex flex-col bg-background text-foreground">
         <Grain />
         <Navbar />
+        <BloodRain />
         {children}
         <Toaster position="bottom-right" theme="dark" richColors />
         <RestaurantJsonLd />
