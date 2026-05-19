@@ -1,13 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { motion, useScroll, useTransform } from "motion/react";
+import { motion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { useRef } from "react";
 import { Flame } from "lucide-react";
 import { Bread, Cheese, Pepper, ForkKnife, Coffee, Pizza, Egg, Carrot, Drop, Plant } from "@phosphor-icons/react/dist/ssr";
 import { GALLERY, INGREDIENT_TICKER, type Photo } from "@/data/photos";
 import { Marquee } from "@/components/ui/marquee";
 import { Section } from "@/components/ui/section";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 // Editorial gallery with real Pexels photography. Replaces the previous
 // typography-only placeholders after v4 feedback. The grid is preserved so
@@ -38,9 +39,14 @@ const ICON_FOR_INGREDIENT: ReadonlyArray<React.ComponentType<{ size?: number; we
 
 export function Gallery() {
   const ref = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const yLarge = useTransform(scrollYProgress, [0, 1], ["-8%", "8%"]);
-  const ySmall = useTransform(scrollYProgress, [0, 1], ["6%", "-6%"]);
+  const yLargeMv = useTransform(scrollYProgress, [0, 1], ["-8%", "8%"]);
+  const ySmallMv = useTransform(scrollYProgress, [0, 1], ["6%", "-6%"]);
+  // En móvil eliminamos el parallax: useScroll forzaba re-render de 5 figuras
+  // por cada tick de scroll y se notaba un tirón perceptible.
+  const yLarge: MotionValue<string> | undefined = isMobile ? undefined : yLargeMv;
+  const ySmall: MotionValue<string> | undefined = isMobile ? undefined : ySmallMv;
   const weekISO = getISOWeek(new Date());
 
   return (
@@ -64,7 +70,7 @@ export function Gallery() {
           return (
             <motion.figure
               key={t.photo.id}
-              style={{ y: parallaxY, aspectRatio: t.aspect }}
+              style={parallaxY ? { y: parallaxY, aspectRatio: t.aspect } : { aspectRatio: t.aspect }}
               className={`relative col-span-12 overflow-hidden rounded-3xl border border-plum-500/15 ${t.span}`}
             >
               <Image
@@ -94,7 +100,7 @@ export function Gallery() {
 
         {/* Top de la semana — magazine cover style */}
         <motion.div
-          style={{ y: yLarge }}
+          style={yLarge ? { y: yLarge } : undefined}
           className="relative col-span-12 overflow-hidden rounded-3xl border border-plum-500/15"
         >
           <div className="relative aspect-[16/8]">

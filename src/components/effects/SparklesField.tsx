@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 // Decoupled sparkles field — same SVG glyph as the magicui SparklesText but
 // positioned independently of any inline-flow element. Avoids the bug where
@@ -38,13 +39,18 @@ export function SparklesField({
   count?: number;
   className?: string;
 }) {
+  const isMobile = useIsMobile();
   const [sparkles, setSparkles] = useState<Sparkle[] | null>(null);
 
+  const effectiveCount = isMobile ? Math.min(4, count) : count;
+
   useEffect(() => {
-    setSparkles(generate(count));
-    const id = setInterval(() => setSparkles(generate(count)), 6000);
+    setSparkles(generate(effectiveCount));
+    // En mobile no regeneramos: evita reflujo de animaciones cada 6s.
+    if (isMobile) return;
+    const id = setInterval(() => setSparkles(generate(effectiveCount)), 6000);
     return () => clearInterval(id);
-  }, [count]);
+  }, [effectiveCount, isMobile]);
 
   if (!sparkles) return null;
 

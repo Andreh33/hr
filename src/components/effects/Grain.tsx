@@ -1,11 +1,12 @@
 // Grain noise overlay — fixed full-viewport SVG turbulence, blend overlay.
 // Stays under the cursor for "film grain" feel without trashing perf
-// (single SVG paint, no JS).
+// (single SVG paint, no JS). En móvil el mix-blend-overlay sobre un SVG fijo
+// fuerza repintado del viewport en cada scroll → lo ocultamos por debajo de md.
 export function Grain({ opacity = 0.08 }: { opacity?: number }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed inset-0 -z-0 mix-blend-overlay"
+      className="pointer-events-none fixed inset-0 -z-0 mix-blend-overlay hidden md:block"
       style={{ opacity }}
     >
       <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">

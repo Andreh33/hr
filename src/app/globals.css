@@ -288,3 +288,19 @@ body {
   outline-offset: 3px;
   border-radius: 4px;
 }
+
+/* ────────────────────────────────────────────────────────────────
+   Mobile scroll perf — esquivar pintado de secciones fuera del
+   viewport. Reduce drásticamente el coste de scroll en mobile sin
+   afectar a la altura del documento (contain-intrinsic-size).
+   ──────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 800px;
+  }
+  /* El hero y la navbar deben pintar siempre. */
+  #hero, header, nav {
+    content-visibility: visible;
+  }
+}
